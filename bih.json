@@ -113761,10 +113761,10 @@
           "properties": {
             "name": "Donji Žabar",
             "population2013": {
-              "overall": 3809 ,
-              "serbs": 1029,
-              "bosniaks": 7,
-              "croats": 58
+              "overall": 3809,
+              "serbs": 2759,
+              "bosniaks": 5,
+              "croats": 1029
             },
             "population1991": {
               "overall": 6171,
@@ -115660,15 +115660,15 @@
           "properties": {
             "name": "Sapna",
             "population2013": {
-              "overall": 11178,
-              "serbs": 234,
-              "bosniaks": 10859,
-              "croats": 3
+              "overall": 2027,
+              "serbs": 0,
+              "bosniaks": 2023,
+              "croats": 0
             },
             "population1991": {
-              "overall": 4436,
-              "serbs": 430,
-              "bosniaks": 28136,
+              "overall": 1807,
+              "serbs": 46,
+              "bosniaks": 1722,
               "croats": 6
             }
           }

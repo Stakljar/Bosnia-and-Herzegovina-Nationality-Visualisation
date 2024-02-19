@@ -685,15 +685,11 @@
             if (population.overall === null) {
                 return { name: "unknown", count: null }
             }
-            if (population.croats > population.bosniaks && population.croats > population.serbs) {
-                return { name: "croats", count: population.croats }
-            }
-            else if (population.bosniaks > population.serbs) {
-                return { name: "bosniaks", count: population.bosniaks }
-            }
-            else {
-                return { name: "serbs", count: population.serbs }
-            }
+    
+            key = Object.keys(population)
+                .filter(key => key !== "overall" && key !== "others")
+                .reduce(function(a, b){ return population[a] > population[b] ? a : b });
+            return { name: key, count: population[key] }
         }
 
         const footer = d3.select("body").append("footer")
