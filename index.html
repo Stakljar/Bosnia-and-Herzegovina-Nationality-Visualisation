@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://d3js.org/topojson.v3.min.js"></script>
+    <title>Bosnia and Hercegovina Nationality Visualisation</title>
+</head>
+
+<body>
+    <script>
+        const nationalities = ["all", "serbs", "bosniaks", "croats", "others"]
+        const nationalitiesColorScale = d3.scaleOrdinal()
+            .domain(nationalities.filter((v) => v !== "all"))
+            .range(["#911600", "#009124", "#000091", "#545454"])
+
+        const years = ["2013.", "1991."]
+        const yearsColorScale = d3.scaleOrdinal()
+            .domain(years)
+            .range(["#a87b00", "#e0da14"])
+
+        let currentNationality = nationalities[0]
+        let currentYear = years[0]
+
+        d3.select("body")
+            .style("margin", "0")
+            .style("min-height", "100vh")
+            .style("display", "flex")
+            .style("flex-direction", "column")
+            .style("font-family", "Gill Sans Extrabold, sans-serif")
+
+        d3.select("body").append("header")
+            .style("background-color", "#00114f")
+            .style("padding", "30px")
+            .append("h1")
+                .text("Bosnia & Herzegovina Nationality Visualisation")
+                .style("color", "white")
+
+        d3.select("body").append("main")
+            .style("flex", "1")
+            .style("background-color", "#d9deff")
+            .append("div")
+                .attr("id", "container")
+                .style("padding", "2% 3%")
+                .append("div")
+                    .attr("id", "map-parameters")
+                    .style("display", "flex")
+                    .style("flex-direction", window.innerWidth <= 992 ? "column" : "row")
+                    .style("gap", "5%")
+                    .append("div")
+                        .attr("id", "map-parameters-nationality")
+                        .append("h3")
+                            .text("Choose nationality")
+                            .style("color", "#00114f")
+                            .style("font-size", "1.5rem")
+                            .style("font-weight", "500")
+
+        d3.select("#map-parameters-nationality").append("div")
+            .attr("id", "nationality-toggle")
+            .selectAll("button")
+            .data(nationalities.filter((v) => v !== "others"))
+            .enter()
+            .append("button")
+                .text((d) => d.charAt(0).toUpperCase() + d.slice(1))
+                .style("border", "0")
+                .style("color", "white")
+                .style("background-color", (d) => d === currentNationality ? "#8a92cf" : "#00114f")
+                .style("padding", "8px 15px")
+                .on("mouseover", function () {
+                    d3.select(this)
+                        .style("cursor", "pointer")
+                        .style("background-color", "#425082")
+                }
+                )
+                .on("mouseout", function (e) {
+                    if (e.target.__data__ === currentNationality) {
+                        d3.select(this)
+                            .style("background-color", "#8a92cf")
+                    }
+                    else {
+                        d3.select(this)
+                            .style("background-color", "#00114f")
+                    }
+                })
+                .on("click", function (e) {
+                    d3.selectAll("#nationality-toggle button").style("background-color", "#00114f")
+                    d3.select(this).style("background-color", "#8a92cf")
+                    currentNationality = e.target.__data__
+                    loadMap()
+                })
+
+        d3.select("#map-parameters").append("div")
+            .attr("id", "map-parameters-year")
+            .append("h3")
+                .text("Choose year")
+                .style("color", "#00114f")
+                .style("font-size", "1.5rem")
+                .style("font-weight", "500")
+
+        d3.select("#map-parameters-year").append("div")
+            .attr("id", "year-toggle")
+            .selectAll("button")
+            .data(years)
+            .enter()
+            .append("button")
+                .text((d) => d)
+                .style("border", "0")
+                .style("color", "white")
+                .style("background-color", (d) => d === currentYear ? "#8a92cf" : "#00114f")
+                .style("padding", "8px 15px")
+                .on("mouseover", function () {
+                    d3.select(this)
+                        .style("cursor", "pointer")
+                        .style("background-color", "#425082")
+                })
+                .on("mouseout", function (e) {
+                    if (e.target.__data__ === currentYear) {
+                        d3.select(this)
+                            .style("background-color", "#8a92cf")
+                    }
+                    else {
+                        d3.select(this)
+                            .style("background-color", "#00114f")
+                    }
+                })
+                .on("click", function (e) {
+                    d3.selectAll("#year-toggle button").style("background-color", "#00114f")
+                    d3.select(this).style("background-color", "#8a92cf")
+                    currentYear = e.target.__data__
+                    loadMap()
+                })
+
+        const map = d3.select("#container").append("div")
+            .attr("id", "map")
+            .style("position", "relative")
+            .style("width", window.innerWidth <= 992 ? "100%" : "80%")
+            .style("height", window.innerWidth <= 992 ? "500px" : "800px")
+            .style("margin-top", "40px")
+            .style("margin-bottom", "40px")
+            .style("background-color", "white")
+            .style("border", "1px solid black")
+
+        const totalStatistics = map.append("div")
+            .attr("id", "total-statistics")
+            .style("position", "absolute")
+            .style("width", "fit-content")
+            .style("height", "43%")
+            .style("box-shadow", "0 0 15px 1px black")
+            .style("overflow", "auto")
+            .style("left", "0")
+            .style("bottom", "0")
+            .style("padding", "1.5%")
+            .style("z-index", "1")
+            .style("border", "2px solid black")
+            .style("background-color", "white")
+
+        totalStatistics.append("h3")
+            .style("margin", "20px")
+            .text("Population")
+
+        totalStatistics.append("div")
+            .attr("class", "visualisation")
+
+        totalStatistics.append("div")
+            .attr("id", "buttons")
+
+        d3.select("#map-parameters").append("button")
+            .attr("id", "show-total-statistics")
+            .text("Show total statistics")
+            .style("width", "fit-content")
+            .style("height", "fit-content")
+            .style("padding", "10px")
+            .style("background-color", "white")
+            .style("border", "1px solid black")
+            .style("border-radius", "10px")
+            .style("margin-top", window.innerWidth <= 992 ? "40px" : "auto")
+            .style("display", "none")
+            .on("mouseover", function () {
+                d3.select(this)
+                    .style("cursor", "pointer")
+                    .style("background-color", "#e0e0e0")
+            })
+            .on("mouseout", function (e) {
+                d3.select(this).style("background-color", "white")
+            })
+            .on("click", function () {
+                d3.select(this).style("display", "none")
+                totalStatistics.style("visibility", "visible")
+            })
+
+        const hover = map.append("div")
+            .attr("id", "municipality-hover")
+            .style("position", "absolute")
+            .style("height", "fit-content")
+            .style("width", "fit-content")
+            .style("padding", "25px")
+            .style("z-index", "2")
+            .style("box-shadow", "0 0 10px 1px black")
+            .style("border", "1px solid black")
+            .style("border-radius", "10px")
+            .style("background-color", "white")
+            .style("display", "none")
+
+        hover.append("h4")
+            .style("word-break", "break-word")
+            .style("margin-top", "5px")
+            .style("margin-bottom", "20px")
+
+        hover.append("div")
+            .attr("class", "visualisation")
+
+        hover.append("h5")
+            .text("Right click to change to bar chart")
+
+        const mapSvg = map.append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%")
+
+        d3.select(window)
+            .on("resize", function () {
+                if (window.innerWidth <= 992) {
+                    map.style("width", "100%")
+                    map.style("height", "500px")
+                }
+                else {
+                    map.style("width", "80%")
+                    map.style("height", "800px")
+                }
+                loadMap()
+            })
+
+        function loadMap() {
+            d3.json("bih.json")
+                .then(function (bih) {
+                    mapSvg.selectAll("path.municipality").remove()
+
+                    const data = topojson.feature(bih, bih.objects.municipalities)
+
+                    loadTotalStatistics(bih.objects.municipalities.total)
+
+                    const width = mapSvg.node().clientWidth
+                    const height = mapSvg.node().clientHeight
+
+                    let currentVisualisation = "pie"
+
+                    const projection = d3.geoMercator().fitExtent([[40, 40], [width - 40, height - 40]], data)
+                    const path = d3.geoPath().projection(projection)
+                    let originalFill, originalOpacity = null
+
+                    hover.select("h5")
+                        .text("Right click to change to bar chart")
+
+                    const municipalities = mapSvg.selectAll("path.municipality")
+                        .data(data.features)
+                        .enter()
+                        .each((d) => {
+                            Object.values(d.properties).forEach((v, i) => {
+                                if (i !== 0) {
+                                    if (v.overall !== null) {
+                                        let sum = 0
+                                        Object.entries(v).forEach(([k, v]) => {
+                                            sum += k !== "overall" ? v : 0
+                                        })
+                                        v["others"] = (v.overall - sum)
+                                    }
+                                    else {
+                                        v["others"] = null
+                                    }
+                                }
+                            })
+                        })
+                        .append("path")
+                            .attr("d", path)
+                            .classed("municipality", true)
+                            .attr("id", (d) => d.properties.name)
+                            .style("stroke", "black")
+                            .style("stroke-width", "0.5")
+                            .style("fill", (d) => {
+                                if (currentNationality === "all") {
+                                    const majorNationality = calculateMajorNationality(currentYear === "2013." ? d.properties.population2013 : d.properties.population1991)
+                                    return majorNationality.name === "unknown" ? "#303030" : nationalitiesColorScale(majorNationality.name)
+                                }
+                                else {
+                                    return nationalitiesColorScale(currentNationality)
+                                }
+                            })
+                            .style("fill-opacity", (d) => {
+                                if (currentNationality === "all") {
+                                    return calculateOpacityWhenAllNationalities(currentYear === "2013." ? d.properties.population2013 : d.properties.population1991)
+                                }
+                                else {
+                                    if (currentYear === "2013.") {
+                                        return calculateOpacityWhenOneNationality(d.properties.population2013[currentNationality], d.properties.population2013.overall)
+                                    }
+                                    else {
+                                        return calculateOpacityWhenOneNationality(d.properties.population1991[currentNationality], d.properties.population1991.overall)
+                                    }
+                                }
+                            })
+                            .on("mouseover", function (e) {
+                                originalFill = d3.select(this).style("fill")
+                                originalOpacity = d3.select(this).style("fill-opacity")
+                                d3.select(this).style("fill-opacity", "1")
+                                d3.select(this).style("fill", "#e6e6e6")
+                                d3.select(this).style("stroke-width", "2.5")
+
+                                hover
+                                    .style("top", e.offsetY + "px")
+                                    .style("left", e.offsetX + "px")
+                                    .style("display", "block")
+                                    .select("h4")
+                                        .text(e.target.__data__.properties.name)
+
+                                hover.select(".visualisation")
+                                    .selectAll("*")
+                                        .remove()
+
+                                const properties = currentYear === "2013." ? e.target.__data__.properties.population2013 : e.target.__data__.properties.population1991
+                                displayPieChart(hover.select(".visualisation"), properties)
+                            })
+                            .on("contextmenu", function (e) {
+                                e.preventDefault()
+                                const properties = { ...e.target.__data__.properties }
+                                delete properties["name"]
+
+                                hover.select(".visualisation")
+                                    .selectAll("*")
+                                        .remove()
+
+                                if (currentVisualisation === "pie") {
+                                    displayBarChart(hover.select(".visualisation"), properties)
+                                    hover.select("h5")
+                                        .text("Right click to change to pie chart")
+                                    currentVisualisation = "bar"
+                                }
+                                else {
+                                    displayPieChart(hover.select(".visualisation"), currentYear === "2013." ? properties.population2013 : properties.population1991)
+                                    hover.select("h5")
+                                        .text("Right click to change to bar chart")
+                                    currentVisualisation = "pie"
+                                }
+                            })
+                            .on("mouseout", function () {
+                                currentVisualisation = "pie"
+                                hover.select("h5")
+                                    .text("Right click to change to bar chart")
+                                d3.select(this).style("fill-opacity", originalOpacity)
+                                d3.select(this).style("fill", originalFill)
+                                d3.select(this).style("stroke-width", "0.5")
+
+                                hover.style("display", "none")
+                            })
+
+                    const zoom = d3.zoom()
+                        .scaleExtent([1, 10])
+                        .translateExtent([[0, 0], [width, height]])
+                        .on("zoom", zoomed)
+
+                    mapSvg.call(zoom)
+
+                    function zoomed(e) {
+                        municipalities.attr("transform", e.transform)
+                    }
+
+                })
+                .catch(function (error) {
+                    alert(error)
+                })
+        }
+
+        loadMap()
+
+        function loadTotalStatistics(originalTotal) {
+            totalStatistics.select(".visualisation")
+                .selectAll("*")
+                .remove()
+
+            totalStatistics.select("#buttons")
+                .selectAll("*")
+                .remove()
+
+            let currentVisualisation = "pie"
+
+            const total = originalTotal
+            Object.entries(total).forEach(([k, v]) => {
+                let sum = 0
+                let nationData = Object.entries(v).forEach(([key, value]) => {
+                    sum += key !== "overall" ? value : 0
+                })
+                v["others"] = (v.overall - sum)
+            })
+
+            let totalCurrentYear = currentYear === "2013." ? total.population2013 : total.population1991
+
+            displayPieChart(totalStatistics.select(".visualisation"), totalCurrentYear)
+
+            totalStatistics.select("#buttons")
+                .selectAll("button")
+                .data(["toggle", "hide"])
+                .enter()
+                .append("button")
+                    .text((d) => d === "toggle" ? "Show bar chart" : "Hide total statistics")
+                    .style("padding", "10px")
+                    .style("background-color", "white")
+                    .style("border", "1px solid black")
+                    .style("border-radius", "10px")
+                    .style("margin", "10px")
+                    .on("mouseover", function () {
+                        d3.select(this)
+                            .style("cursor", "pointer")
+                            .style("background-color", "#e0e0e0")
+                    })
+                    .on("mouseout", function (e) {
+                        d3.select(this).style("background-color", "white")
+                    })
+                    .on("click", function (e) {
+                        if (e.target.__data__ === "toggle") {
+                            if (currentVisualisation === "pie") {
+                                totalStatistics.select(".visualisation").selectAll("*").remove()
+                                displayBarChart(totalStatistics.select(".visualisation"), total)
+                                currentVisualisation = "bar"
+                                d3.select(this).text("Show pie chart")
+                            }
+                            else {
+                                totalStatistics.select(".visualisation").selectAll("*").remove()
+                                displayPieChart(totalStatistics.select(".visualisation"), totalCurrentYear)
+                                currentVisualisation = "pie"
+                                d3.select(this).text("Show bar chart")
+                            }
+                        }
+                        else {
+                            totalStatistics.style("visibility", "hidden")
+                            d3.select("#show-total-statistics").style("display", "inline-block")
+                        }
+                    })
+        }
+
+        function displayPieChart(element, population) {
+            const pieChart = element.append("div")
+                .attr("id", "pie-chart")
+                .style("display", "flex")
+                .style("flex-direction", "row")
+                .style("gap", "50px")
+
+            const legend = pieChart.append("div")
+                .style("width", "fit-content")
+                .style("display", "flex")
+                .style("flex-direction", "column")
+
+            legend.append("h4")
+                .text("Overall: " + (population.overall === null ? "Unknown" : population.overall))
+
+            const data = Object.entries(population).map(([k, v]) => { return { key: k, value: v } }).slice(1)
+            legend.selectAll("div")
+                .data(data.filter((k, v) => k !== "all"))
+                .enter()
+                .append("div")
+                    .style("margin-bottom", "15px")
+                    .style("width", "fit-content")
+                    .style("display", "flex")
+                    .style("flex-direction", "row")
+                    .style("align-items", "center")
+                    .style("gap", "20px")
+                    .each(function () {
+                        const legendItem = d3.select(this)
+                        legendItem.append("div")
+                            .append("svg")
+                            .attr("width", "30")
+                            .attr("height", "18")
+                            .append("rect")
+                                .attr("width", "30")
+                                .attr("height", "18")
+                                .attr("fill", (d) => nationalitiesColorScale(d.key))
+
+                        legendItem.append("strong")
+                            .text((d) => d.key.charAt(0).toUpperCase() + d.key.slice(1) + ": " + (population[d.key] === null ? "Unknown" : population[d.key]))
+                    })
+
+            const width = window.innerWidth <= 992 ? 130 : 180
+            const height = width
+
+            const arc = d3.arc().innerRadius(0).outerRadius(width / 2)
+            const pie = d3.pie().value((d) => d.value)
+
+            const arcs = pieChart
+                .append("div")
+                .style("padding-right", "1.5%")
+                    .append("svg")
+                        .attr("width", width)
+                        .attr("height", height)
+                        .selectAll("g")
+                        .data(pie(data))
+                        .enter()
+                        .append("g")
+                            .attr("transform", `translate(${width / 2}, ${height / 2})`)
+
+            arcs.append("path")
+                .attr("fill", (d, i) => nationalitiesColorScale(d.data.key))
+                .attr("stroke", "white")
+                .attr("stroke-width", "0.5")
+                .each(function (d) {
+                    const interpolate = d3.interpolate({ endAngle: 0 }, d)
+                    d3.select(this)
+                        .transition()
+                        .duration(1200)
+                        .attrTween("d", (d) => (t) => arc(interpolate(t)))
+                })
+
+            arcs.append("text")
+                .attr("transform", (d) => `translate(${arc.centroid(d).map((v) => v * 1.25)})`)
+                .attr("text-anchor", "middle")
+                .attr("font-size", "0.77rem")
+                .attr("font-weight", "900")
+                .style("fill", "white")
+                .text((d) => (d.data.value / population.overall * 100).toFixed(1) + "%")
+        }
+
+        function displayBarChart(element, populations) {
+            const barChart = element.append("div")
+                .attr("id", "bar-chart")
+
+            const legend = barChart.append("div")
+                .style("width", "fit-content")
+                .style("margin-left", "auto")
+                .style("margin-right", "0")
+                .style("display", "flex")
+                .style("flex-direction", "column")
+
+            legend.selectAll("div")
+                .data(years)
+                .enter()
+                .append("div")
+                    .style("margin-bottom", "15px")
+                    .style("width", "fit-content")
+                    .style("display", "flex")
+                    .style("flex-direction", "row")
+                    .style("align-items", "center")
+                    .style("gap", "20px")
+                    .each(function () {
+                        const legendItem = d3.select(this)
+                        legendItem.append("div")
+                            .append("svg")
+                            .attr("width", "30")
+                            .attr("height", "18")
+                            .append("rect")
+                                .attr("width", "30")
+                                .attr("height", "18")
+                                .attr("fill", (d) => yearsColorScale(d))
+
+                        legendItem.append("strong")
+                            .text((d) => d.charAt(0).toUpperCase() + d.slice(1))
+                    })
+
+            let adjustedValuesPopulations = {}
+
+            for (const key in populations) {
+                for (const subKey in populations[key]) {
+                    if (!adjustedValuesPopulations[subKey]) {
+                        adjustedValuesPopulations[subKey] = {}
+                    }
+                    adjustedValuesPopulations[subKey][key] = populations[key][subKey]
+                }
+            }
+
+            const data = Object.entries(adjustedValuesPopulations).map(([k, v]) => {
+                const yearData = Object.entries(v).map(([key, value]) => { return { key: key, value: value === null ? 0 : value } })
+                return { key: k, value: yearData }
+            })
+
+            const margin = { top: 20, right: 10, bottom: 30, left: 40 }
+
+            const width = (window.innerWidth <= 992 ? 300 : 460) - margin.left - margin.right
+            const height = (window.innerWidth <= 992 ? 160 : 200) - margin.top - margin.bottom
+
+            const svg = barChart
+                .append("div")
+                    .append("svg")
+                    .attr("width", width + margin.left + margin.right)
+                    .attr("height", height + margin.top + margin.bottom)
+                    .append("g")
+                    .attr("transform", `translate(${margin.left}, ${margin.top})`)
+
+            const x = d3.scaleBand()
+                .domain(data.map((v) => v.key))
+                .range([0, width])
+                .padding([0.2])
+
+            let highestPopulation = 0
+            data.find((v) => v.key === "overall").value.forEach((v) => {
+                if (v.value > highestPopulation) {
+                    highestPopulation = v.value
+                }
+            })
+
+            const y = d3.scaleLinear()
+                .domain([0, highestPopulation])
+                .range([height, 0])
+
+            const xSub = d3.scaleBand()
+                .domain(data[0].value.map((v) => v.key))
+                .range([0, x.bandwidth()])
+                .padding([0.15])
+
+            svg.append("g")
+                .attr("class", "x-axis")
+                .attr("transform", `translate(0, ${height})`)
+                .style("text-anchor", "middle")
+                .call(d3.axisBottom(x)
+                    .tickSize(8))
+                .selectAll("text")
+                    .attr("font-size", "0.8rem")
+                    .text((d) => d.charAt(0).toUpperCase() + d.slice(1))
+
+            svg.append("g")
+                .attr("class", "y-axis")
+                .style("text-anchor", "end")
+                .call(d3.axisLeft(y)
+                    .tickFormat(d3.format(".2s"))
+                    .ticks(5))
+                .selectAll("text")
+                    .attr("font-size", "0.8rem")
+
+            svg.append("g")
+                .selectAll("g")
+                .data(data)
+                .enter()
+                .append("g")
+                    .attr("transform", (d) => `translate(${x(d.key)}, 0)`)
+                    .selectAll("rect")
+                    .data((d) => d.value)
+                    .enter()
+                    .append("rect")
+                        .attr("x", (d) => xSub(d.key))
+                        .attr("y", (d) => height)
+                        .attr("width", xSub.bandwidth())
+                        .attr("fill", (d) => d.key.includes("1991") ? yearsColorScale("1991.") : yearsColorScale("2013."))
+                        .transition()
+                        .duration(1200)
+                        .attr("y", (d) => y(d.value))
+                        .attr("height", (d) => height - y(d.value))
+
+        }
+
+        function calculateOpacityWhenAllNationalities(population) {
+            let majorNationalityCount = calculateMajorNationality(population).count
+            if (majorNationalityCount / population.overall * 100 < 49.5) {
+                return 0.4
+            }
+            else if (majorNationalityCount / population.overall * 100 < 66) {
+                return 0.6
+            }
+            else if (majorNationalityCount / population.overall * 100 < 82.5) {
+                return 0.8
+            }
+            else {
+                return 1
+            }
+        }
+
+        function calculateOpacityWhenOneNationality(nationality, overall) {
+            if (overall === null || nationality / overall * 100 < 5) {
+                return 0
+            }
+            else if (nationality / overall * 100 < 20) {
+                return 0.2
+            }
+            else if (nationality / overall * 100 < 40) {
+                return 0.4
+            }
+            else if (nationality / overall * 100 < 60) {
+                return 0.6
+            }
+            else if (nationality / overall * 100 < 80) {
+                return 0.8
+            }
+            else {
+                return 1
+            }
+        }
+
+        function calculateMajorNationality(population) {
+            if (population.overall === null) {
+                return { name: "unknown", count: null }
+            }
+    
+            key = Object.keys(population)
+                .filter(key => key !== "overall" && key !== "others")
+                .reduce(function(a, b){ return population[a] > population[b] ? a : b });
+            return { name: key, count: population[key] }
+        }
+
+        const footer = d3.select("body").append("footer")
+            .style("font-size", "1rem")
+            .style("padding", "75px 45px")
+            .style("color", "white")
+            .style("background-color", "#00114f")
+
+        footer.selectAll("div")
+            .data(["Course: Data Visualisation", "Made by: Dražen Antunović", "Faculty of Electrical Engineering, Computer Science and Information Technology, Osijek"])
+            .enter()
+            .append("div")
+                .text((d) => d)
+                .style("margin-bottom", (d, i) => i != 2 ? "30px" : "0")
+                .style("font-size", "1.2rem")
+
+    </script>
+</body>
+
+</html>
